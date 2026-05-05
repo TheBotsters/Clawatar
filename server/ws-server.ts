@@ -42,11 +42,25 @@ const OPENCLAW_SYNC_BACKUP_PATH = process.env.HOME
 const ALLOWED_THEME_KEYS = new Set(['sakura', 'sunset', 'ocean', 'night', 'forest', 'lavender', 'minimal'])
 const ALLOWED_CAMERA_PRESETS = new Set(['face', 'portrait', 'full'])
 
-// ElevenLabs config
-const VOICE_ID = process.env.ELEVEN_LABS_VOICE_ID || config.voice?.elevenlabsVoiceId || 'L5vK1xowu0LZIPxjLSl5'
-const MODEL_ID = process.env.ELEVEN_LABS_MODEL || config.voice?.elevenlabsModel || 'eleven_turbo_v2_5'
+type TtsProviderKind = 'elevenlabs' | 'openai-compatible'
 
-function getApiKey(): string {
+type ResolvedTtsConfig = {
+  provider: TtsProviderKind
+  elevenlabs: {
+    voiceId: string
+    model: string
+    apiKey: string
+  }
+  openaiCompatible: {
+    endpoint: string
+    model: string
+    voice: string
+    responseFormat: string
+    apiKey: string
+  }
+}
+
+function getElevenLabsApiKey(): string {
   if (process.env.ELEVENLABS_API_KEY) return process.env.ELEVENLABS_API_KEY
   try {
     const configPath = join(process.env.HOME || '', '.openclaw', 'openclaw.json')
@@ -55,7 +69,29 @@ function getApiKey(): string {
   } catch { return '' }
 }
 
-const API_KEY = getApiKey()
+function resolveTtsConfig(): ResolvedTtsConfig {
+  return {
+    provider: config.voice?.provider === 'openai-compatible' ? 'openai-compatible' : 'elevenlabs',
+    elevenlabs: {
+      voiceId: process.env.ELEVEN_LABS_VOICE_ID || config.voice?.elevenlabs?.voiceId || config.voice?.elevenlabsVoiceId || 'L5vK1xowu0LZIPxjLSl5',
+      model: process.env.ELEVEN_LABS_MODEL || config.voice?.elevenlabs?.model || config.voice?.elevenlabsModel || 'eleven_turbo_v2_5',
+      apiKey: process.env.ELEVENLABS_API_KEY || config.voice?.elevenlabs?.apiKey || getElevenLabsApiKey(),
+    },
+    openaiCompatible: {
+      endpoint: process.env.OPENAI_COMPATIBLE_TTS_ENDPOINT || config.voice?.openaiCompatible?.endpoint || 'http://127.0.0.1:8772/v1/audio/speech',
+      model: process.env.OPENAI_COMPATIBLE_TTS_MODEL || config.voice?.openaiCompatible?.model || 'tts-1',
+      voice: process.env.OPENAI_COMPATIBLE_TTS_VOICE || config.voice?.openaiCompatible?.voice || 'af_bella',
+      responseFormat: process.env.OPENAI_COMPATIBLE_TTS_RESPONSE_FORMAT || config.voice?.openaiCompatible?.responseFormat || 'mp3',
+      apiKey: process.env.OPENAI_COMPATIBLE_TTS_API_KEY || config.voice?.openaiCompatible?.apiKey || '',
+    },
+  }
+}
+
+const TTS = resolveTtsConfig()
+const VOICE_ID = TTS.elevenlabs.voiceId
+const MODEL_ID = TTS.elevenlabs.model
+const API_KEY = TTS.elevenlabs.apiKey
+
 const TRANSPORT_STATUS_KEYWORDS = /(relay|gateway|websocket|ws|8765|18789|连接|连上|本地|直连|鉴权|session|配对|pair)/i
 const BRIDGE_STATUS_URL = process.env.CLAWATAR_BRIDGE_STATUS_URL || 'http://127.0.0.1:8797/status'
 const RELAY_SESSION_STATUS_URL = process.env.CLAWATAR_RELAY_SESSION_STATUS_URL || 'http://127.0.0.1:8797/relay/session-status'
