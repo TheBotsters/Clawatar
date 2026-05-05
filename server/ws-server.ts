@@ -262,20 +262,20 @@ audioServer.listen(AUDIO_PORT, SERVER_HOST, () => {
 })
 
 // --- TTS generation ---
-async function generateTTS(text: string): Promise<string> {
-  if (!API_KEY) throw new Error('No ElevenLabs API key configured')
-  
-  const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`
+async function synthesizeWithElevenLabs(text: string): Promise<Buffer> {
+  if (!TTS.elevenlabs.apiKey) throw new Error('No ElevenLabs API key configured')
+
+  const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${TTS.elevenlabs.voiceId}/stream`
   const resp = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      'xi-api-key': API_KEY,
+      'xi-api-key': TTS.elevenlabs.apiKey,
       'accept': 'audio/mpeg',
       'content-type': 'application/json',
     },
     body: JSON.stringify({
       text: text.trim(),
-      model_id: MODEL_ID,
+      model_id: TTS.elevenlabs.model,
       voice_settings: { stability: 0.45, similarity_boost: 0.75 },
     }),
   })
@@ -285,11 +285,44 @@ async function generateTTS(text: string): Promise<string> {
     throw new Error(`ElevenLabs error (${resp.status}): ${body.slice(0, 300)}`)
   }
 
-  const buffer = Buffer.from(await resp.arrayBuffer())
+  return Buffer.from(await resp.arrayBuffer())
+}
+
+async function synthesizeWithOpenAiCompatible(text: string): Promise<Buffer> {
+  const endpoint = TTS.openaiCompatible.endpoint
+  const headers: Record<string, string> = { 'content-type': 'application/json' }
+  if (TTS.openaiCompatible.apiKey) headers['Authorization'] = `Bearer ${TTS.openaiCompatible.apiKey}`
+  const resp = await fetch(endpoint, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: TTS.openaiCompatible.model,
+      input: text.trim(),
+      voice: TTS.openaiCompatible.voice,
+      response_format: TTS.openaiCompatible.responseFormat,
+    }),
+  })
+
+  if (!resp.ok) {
+    const body = await resp.text()
+    throw new Error(`OpenAI-compatible TTS error (${resp.status}): ${body.slice(0, 300)}`)
+  }
+
+  return Buffer.from(await resp.arrayBuffer())
+}
+
+async function writeAudioBuffer(buffer: Buffer): Promise<string> {
   const fileName = `${randomUUID()}.mp3`
   writeFileSync(join(AUDIO_CACHE_DIR, fileName), buffer)
   pruneCache()
   return `${getAudioBaseURL()}/audio/${fileName}`
+}
+
+async function generateTTS(text: string): Promise<string> {
+  const buffer = TTS.provider === 'openai-compatible'
+    ? await synthesizeWithOpenAiCompatible(text)
+    : await synthesizeWithElevenLabs(text)
+  return writeAudioBuffer(buffer)
 }
 
 function pruneCache() {
@@ -393,7 +426,15 @@ async function* sentenceSplitter(tokens: AsyncGenerator<string>): AsyncGenerator
  * Starts generating audio as soon as the first sentence arrives.
  */
 async function streamingTTS(sentences: AsyncIterable<string>): Promise<{ audioUrl: string; firstChunkMs: number }> {
-  if (!API_KEY) throw new Error('No ElevenLabs API key')
+  if (TTS.provider === 'openai-compatible') {
+    const startTime = Date.now()
+    const allTextParts: string[] = []
+    for await (const sentence of sentences) allTextParts.push(sentence)
+    const fullText = allTextParts.join('').trim()
+    if (!fullText) throw new Error('No text to synthesize')
+    const audioUrl = await generateTTS(fullText)
+    return { audioUrl, firstChunkMs: Date.now() - startTime }
+  }
 
   return new Promise(async (resolve, reject) => {
     const audioBuffers: Buffer[] = []
@@ -401,25 +442,22 @@ async function streamingTTS(sentences: AsyncIterable<string>): Promise<{ audioUr
     const startTime = Date.now()
     let resolved = false
 
-    const wsUrl = `wss://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream-input?model_id=${MODEL_ID}&output_format=mp3_44100_128`
+    const wsUrl = `wss://api.elevenlabs.io/v1/text-to-speech/${TTS.elevenlabs.voiceId}/stream-input?model_id=${TTS.elevenlabs.model}&output_format=mp3_44100_128`
     const elWs = new WebSocket(wsUrl)
 
     elWs.on('open', async () => {
-      // Initial handshake
       elWs.send(JSON.stringify({
         text: ' ',
         voice_settings: { stability: 0.45, similarity_boost: 0.75 },
-        xi_api_key: API_KEY,
+        xi_api_key: TTS.elevenlabs.apiKey,
       }))
 
-      // Feed sentences as they arrive from AI
       for await (const sentence of sentences) {
         if (elWs.readyState === WebSocket.OPEN) {
           elWs.send(JSON.stringify({ text: sentence }))
         }
       }
 
-      // Signal end of text
       if (elWs.readyState === WebSocket.OPEN) {
         elWs.send(JSON.stringify({ text: '' }))
       }
@@ -440,16 +478,16 @@ async function streamingTTS(sentences: AsyncIterable<string>): Promise<{ audioUr
       } catch {}
     })
 
-    elWs.on('close', () => {
+    elWs.on('close', async () => {
       if (resolved) return
       resolved = true
       if (audioBuffers.length === 0) { reject(new Error('No audio from ElevenLabs')); return }
-      const combined = Buffer.concat(audioBuffers)
-      const fileName = `${randomUUID()}.mp3`
-      writeFileSync(join(AUDIO_CACHE_DIR, fileName), combined)
-      pruneCache()
-      const audioUrl = `${getAudioBaseURL()}/audio/${fileName}`
-      resolve({ audioUrl, firstChunkMs: (firstChunkTime || Date.now()) - startTime })
+      try {
+        const audioUrl = await writeAudioBuffer(Buffer.concat(audioBuffers))
+        resolve({ audioUrl, firstChunkMs: (firstChunkTime || Date.now()) - startTime })
+      } catch (err) {
+        reject(err)
+      }
     })
 
     elWs.on('error', (err) => { if (!resolved) { resolved = true; reject(err) } })
@@ -592,6 +630,60 @@ async function streamingAudioPipeline(
   let firstChunkMs = 0
   let chunkIndex = 0
   let audioStartSent = false
+
+  if (TTS.provider === 'openai-compatible') {
+    const gwResp = await fetch(`http://127.0.0.1:${GATEWAY_PORT}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GATEWAY_TOKEN}`,
+        'x-openclaw-agent-id': 'main',
+        'x-openclaw-session-key': sessionKey,
+      },
+      body: JSON.stringify({ model: 'openclaw', stream: true, messages }),
+    })
+
+    if (!gwResp.ok) {
+      throw new Error(`Gateway ${gwResp.status}: ${(await gwResp.text()).slice(0, 200)}`)
+    }
+
+    const reader = gwResp.body!.getReader()
+    const dec = new TextDecoder()
+    let buf = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += dec.decode(value, { stream: true })
+      const lines = buf.split('\n'); buf = lines.pop() || ''
+      for (const line of lines) {
+        if (!line.startsWith('data: ') || line === 'data: [DONE]') continue
+        try {
+          const token = JSON.parse(line.slice(6)).choices?.[0]?.delta?.content
+          if (token) fullText += token
+        } catch {}
+      }
+    }
+
+    if (/^(NO_REPLY|HEARTBEAT_OK)\s*$/i.test(fullText.trim())) {
+      console.log('[stream-audio] Response is NO_REPLY — suppressing')
+      return { text: fullText, firstChunkMs }
+    }
+
+    const { action_id, expression, expression_weight } = pickAction(fullText || '…')
+    broadcastToClients({
+      type: 'audio_start', session_id: sid,
+      action_id, expression, expression_weight,
+      text: fullText,
+    })
+
+    const audioUrl = await generateTTS(fullText)
+    firstChunkMs = Date.now() - startTime
+    broadcastToClients({ type: 'audio_end', session_id: sid, text: fullText, audio_url: audioUrl })
+    const totalMs = Date.now() - startTime
+    console.log(`[stream-audio] Batch mode done in ${totalMs}ms (first audio: ${firstChunkMs}ms): "${fullText.slice(0, 80)}"`)
+    return { text: fullText, firstChunkMs }
+  }
 
   /* ── 1. Pre-warm ElevenLabs WS ── */
   const elReady = new Promise<WebSocket>((resolve, reject) => {

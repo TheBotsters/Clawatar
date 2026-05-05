@@ -1,10 +1,10 @@
 {
   "model": {
-    "url": "./models/avatar.vrm",
+    "url": "",
     "autoLoad": true
   },
   "voice": {
-    "provider": "elevenlabs",
+    "provider": "openai-compatible",
     "elevenlabs": {
       "voiceId": "L5vK1xowu0LZIPxjLSl5",
       "model": "eleven_turbo_v2_5"
@@ -23,7 +23,7 @@
     "audioPort": 8866
   },
   "openclaw": {
-    "gatewayPort": 18789,
-    "sessionId": "vrm-chat"
+    "gatewayPort": 18880,
+    "sessionId": "annie-avatar"
   }
 }
