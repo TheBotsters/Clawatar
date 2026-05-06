@@ -128,6 +128,10 @@ function isLoopbackAddress(address: string | undefined): boolean {
 }
 
 function getAudioBaseURL(): string {
+  const tsIP = process.env.CLAWATAR_TAILSCALE_IP || '100.77.209.106'
+  if (process.env.CLAWATAR_TAILSCALE_IP || tsIP) {
+    return `http://${tsIP}:${actualAudioPort}`
+  }
   const host = process.env.CLAWATAR_PUBLIC_HOST || getPrimaryNetworkIP() || 'localhost'
   return `http://${host}:${actualAudioPort}`
 }
@@ -237,13 +241,13 @@ const BRIDGE_PORT = config.server?.bridgePort || 8867
 bridgeServer.on('error', (err: any) => {
   if (err.code === 'EADDRINUSE') {
     console.log(`Bridge port ${BRIDGE_PORT} in use, trying ${BRIDGE_PORT + 1}...`)
-    bridgeServer.listen(BRIDGE_PORT + 1, SERVER_HOST)
+    bridgeServer.listen(BRIDGE_PORT + 1, '0.0.0.0')
   } else {
     console.error('Bridge server error:', err)
   }
 })
 
-bridgeServer.listen(BRIDGE_PORT, SERVER_HOST, () => {
+bridgeServer.listen(BRIDGE_PORT, '0.0.0.0', () => {
   console.log(`Bridge HTTP server on http://localhost:${BRIDGE_PORT}`)
 })
 
@@ -251,13 +255,13 @@ audioServer.on('error', (err: any) => {
   if (err.code === 'EADDRINUSE') {
     console.log(`Port ${actualAudioPort} in use, trying ${actualAudioPort + 1}...`)
     actualAudioPort++
-    audioServer.listen(actualAudioPort, SERVER_HOST)
+    audioServer.listen(actualAudioPort, '0.0.0.0')
   } else {
     console.error('Audio server error:', err)
   }
 })
 
-audioServer.listen(AUDIO_PORT, SERVER_HOST, () => {
+audioServer.listen(AUDIO_PORT, '0.0.0.0', () => {
   console.log(`Audio HTTP server on ${getAudioBaseURL()}`)
 })
 
@@ -374,7 +378,12 @@ async function* streamFromGateway(
     },
     body: JSON.stringify({ model: 'openclaw', stream: true, messages }),
   })
-  if (!resp.ok) throw new Error(`Gateway ${resp.status}: ${await resp.text()}`)
+  if (!resp.ok) {
+    const body = await resp.text()
+    console.warn(`[gateway] chat backend unavailable (${resp.status}): ${body.slice(0, 200)}`)
+    yield "The integrated chat backend is unavailable right now. Annie's avatar shell still works, but chat and voice input are temporarily disabled until the gateway integration is fixed."
+    return
+  }
 
   const reader = resp.body!.getReader()
   const decoder = new TextDecoder()

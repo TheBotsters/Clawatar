@@ -25,6 +25,17 @@ import { initAmbienceMixer } from './ambience-mixer'
 import { state } from './app-state'
 import { persistModelURL, resolveAutoLoadModelURL, warmConversationActions } from './viewer-autoload'
 
+// Update UI from VRM metadata when a model is loaded
+export function updateModelUI() {
+  const name = state.vrmMeta?.name
+  if (name) {
+    const nameEl = document.querySelector('.name-text')
+    if (nameEl) nameEl.textContent = name
+    const chatHeader = document.getElementById('chat-header')
+    if (chatHeader) chatHeader.textContent = `💬 Chat with ${name} ▾`
+  }
+}
+
 // Debug: expose state + scene for console material inspection
 ;(window as any).__app_state = state
 ;(window as any).__three_scene = scene
@@ -142,6 +153,7 @@ async function autoLoad() {
         console.warn('[autoLoad] idle preload failed:', error)
       })
       const vrm = await loadVRM(modelUrl)
+      updateModelUI()
       await preloadBaseIdle
       vrm.scene.traverse((child) => {
         if (child instanceof THREE.Mesh) {

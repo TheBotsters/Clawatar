@@ -385,6 +385,15 @@ export async function loadVRM(urlOrBlob: string | Blob): Promise<VRM> {
     state.vrmMeta = normalizeVRMMeta((vrm as any).meta)
     state.baseFacingYaw = baseYaw
 
+    // Update UI from VRM metadata (name, chat header, etc.)
+    const metaName = state.vrmMeta.name
+    if (metaName) {
+      const nameEl = document.querySelector('.name-text')
+      if (nameEl) nameEl.textContent = metaName
+      const chatHeader = document.getElementById('chat-header')
+      if (chatHeader) chatHeader.textContent = `💬 Chat with ${metaName} ▾`
+    }
+
     // Save URL for persistence (skip blob URLs)
     if (typeof urlOrBlob === 'string' && !urlOrBlob.startsWith('blob:')) {
       localStorage.setItem('vrm-model-url', urlOrBlob)
