@@ -199,31 +199,43 @@ const bridgeServer = createServer(async (req, res) => {
     req.on('data', (chunk: string) => { body += chunk })
     req.on('end', async () => {
       try {
-        const { text, audio_device } = JSON.parse(body)
+        const { text, audio_device, action_id: actionIdOverride, expression: expressionOverride, expression_weight: expressionWeightOverride } = JSON.parse(body)
         if (!text) { res.writeHead(400); res.end('Missing text'); return }
 
-        console.log(`[bridge] Speaking: "${text.slice(0, 80)}..." (audio_device: ${audio_device || 'all'})`)
-        const { action_id, expression, expression_weight } = pickAction(text)
+        await enqueueBridgeSpeak(async () => {
+          const request_id = `bridge_${++bridgeRequestSeq}`
+          console.log(`[bridge] Speaking: "${text.slice(0, 80)}..." (audio_device: ${audio_device || 'all'}, request: ${request_id})`)
+          const inferred = pickAction(text)
+          const action_id = typeof actionIdOverride === 'string' && actionIdOverride.trim() ? actionIdOverride.trim() : inferred.action_id
+          const expression = typeof expressionOverride === 'string' && expressionOverride.trim() ? expressionOverride.trim() : inferred.expression
+          const expression_weight = typeof expressionWeightOverride === 'number' ? expressionWeightOverride : inferred.expression_weight
 
-        try {
-          const audioUrl = await generateTTS(text)
-          const msg: any = { type: 'speak_audio', audio_url: audioUrl, text, action_id, expression, expression_weight }
-          if (audio_device) msg.audio_device = audio_device
-          const msgStr = JSON.stringify(msg)
-          for (const client of clients) {
-            if (client.readyState === WebSocket.OPEN) client.send(msgStr)
+          try {
+            const audioUrl = await generateTTS(text)
+            const msg: any = { type: 'speak_audio', request_id, audio_url: audioUrl, text, action_id, expression, expression_weight }
+            if (audio_device) msg.audio_device = audio_device
+            const msgStr = JSON.stringify(msg)
+            for (const client of clients) {
+              if (client.readyState === WebSocket.OPEN) client.send(msgStr)
+            }
+            const fallbackTimer = setTimeout(() => completeBridgeRequest(request_id), estimateBridgeSpeechMs(text))
+            try {
+              await waitForBridgeCompletion(request_id)
+            } finally {
+              clearTimeout(fallbackTimer)
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ ok: true, request_id, action_id, audio_url: audioUrl }))
+          } catch (e: any) {
+            const msg = JSON.stringify({ type: 'speak', request_id, text, action_id, expression, expression_weight })
+            for (const client of clients) {
+              if (client.readyState === WebSocket.OPEN) client.send(msg)
+            }
+            completeBridgeRequest(request_id)
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ ok: true, request_id, action_id, tts_error: e.message }))
           }
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: true, action_id, audio_url: audioUrl }))
-        } catch (e: any) {
-          // TTS failed — still send text with animation
-          const msg = JSON.stringify({ type: 'speak', text, action_id, expression, expression_weight })
-          for (const client of clients) {
-            if (client.readyState === WebSocket.OPEN) client.send(msg)
-          }
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: true, action_id, tts_error: e.message }))
-        }
+        })
       } catch (e: any) {
         res.writeHead(400)
         res.end(e.message)
@@ -3222,6 +3234,43 @@ function handleSlashCommand(text: string): any | null {
 // --- WebSocket server ---
 const wss = new WebSocketServer({ port: WS_PORT, host: SERVER_HOST })
 const clients = new Set<WebSocket>()
+let bridgeRequestSeq = 0
+let bridgeQueue: Promise<void> = Promise.resolve()
+const pendingBridgeCompletions = new Map<string, { resolve: () => void, reject: (err: Error) => void, timer: ReturnType<typeof setTimeout> }>()
+
+function enqueueBridgeSpeak<T>(task: () => Promise<T>): Promise<T> {
+  const run = bridgeQueue.then(task)
+  bridgeQueue = run.then(() => undefined, () => undefined)
+  return run
+}
+
+function waitForBridgeCompletion(requestId: string, timeoutMs = 30000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingBridgeCompletions.delete(requestId)
+      reject(new Error(`Timed out waiting for avatar playback completion (${requestId})`))
+    }, timeoutMs)
+    pendingBridgeCompletions.set(requestId, { resolve, reject, timer })
+  })
+}
+
+function estimateBridgeSpeechMs(text: string): number {
+  const trimmed = text.trim()
+  if (!trimmed) return 800
+  const words = trimmed.split(/\s+/).filter(Boolean).length
+  const chars = [...trimmed].length
+  const estimated = Math.max(words * 420, chars * 75) + 900
+  return Math.max(1200, Math.min(estimated, 12000))
+}
+
+function completeBridgeRequest(requestId: string, error?: string): void {
+  const pending = pendingBridgeCompletions.get(requestId)
+  if (!pending) return
+  clearTimeout(pending.timer)
+  pendingBridgeCompletions.delete(requestId)
+  if (error) pending.reject(new Error(error))
+  else pending.resolve()
+}
 
 wss.on('connection', (ws, req) => {
   const remoteAddress = req.socket.remoteAddress
@@ -3647,6 +3696,16 @@ wss.on('connection', (ws, req) => {
         console.error('User speech handling error:', e.message)
         ws.send(JSON.stringify({ type: 'tts_error', message: e.message }))
       })
+      return
+    }
+
+    if (parsed?.type === 'avatar_performance_complete' && typeof parsed.request_id === 'string') {
+      completeBridgeRequest(parsed.request_id)
+      return
+    }
+
+    if (parsed?.type === 'avatar_performance_error' && typeof parsed.request_id === 'string') {
+      completeBridgeRequest(parsed.request_id, typeof parsed.message === 'string' ? parsed.message : 'avatar performance error')
       return
     }
 

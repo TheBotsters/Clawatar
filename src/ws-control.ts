@@ -338,6 +338,9 @@ async function handleCommand(cmd: any, options: HandleCommandOptions = {}) {
             setExpression(expression, expressionWeight ?? 0.8, undefined, { sync: false })
           }
         }
+        if (cmd.request_id) {
+          send({ type: 'avatar_performance_complete', request_id: cmd.request_id })
+        }
         break
       }
       /* ── streaming audio (voice/chat mode) ── */
