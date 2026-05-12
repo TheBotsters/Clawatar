@@ -308,7 +308,7 @@ async function handleCommand(cmd: any, options: HandleCommandOptions = {}) {
         break
       case 'speak':
         // Fallback if server didn't handle TTS (no API key, etc.)
-        await requestSpeak(cmd.text ?? '', cmd.action_id, cmd.expression, cmd.expression_weight)
+        await requestSpeak(cmd.text ?? '', cmd.action_id, cmd.expression, cmd.expression_weight, cmd.lip_sync)
         break
       case 'speak_audio':
       case 'tts_audio': {
@@ -329,7 +329,7 @@ async function handleCommand(cmd: any, options: HandleCommandOptions = {}) {
         // Focus-based audio: only play audio if this device is the target (or no target specified)
         const shouldPlayAudio = !cmd.audio_device || cmd.audio_device === WEB_DEVICE_ID || cmd.audio_device === WEB_DEVICE_TYPE
         if (shouldPlayAudio) {
-          await requestSpeakAudio(cmd.audio_url, actionId, expression, expressionWeight)
+          await requestSpeakAudio(cmd.audio_url, actionId, expression, expressionWeight, cmd.lip_sync)
         } else {
           // Still show animation + expression, just no audio
           await requestAction(actionId || '86_Talking', { sync: false })
@@ -339,7 +339,7 @@ async function handleCommand(cmd: any, options: HandleCommandOptions = {}) {
           }
         }
         if (cmd.request_id) {
-          send({ type: 'avatar_performance_complete', request_id: cmd.request_id })
+          sendWS({ type: 'avatar_performance_complete', request_id: cmd.request_id })
         }
         break
       }

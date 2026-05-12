@@ -3,7 +3,7 @@ import { state } from './app-state'
 import { getActivityMode } from './activity-modes'
 import { DEFAULT_BASE_IDLE_ACTION, loadAndPlayAction, playBaseIdle, warmupAnimationCache } from './animation'
 import { setExpression, resetExpressionsImmediately } from './expressions'
-import { triggerSpeak, playAudioLipSync, resetLipSync } from './lip-sync'
+import { triggerSpeak, playAudioLipSync, resetLipSync, setLipSyncMode } from './lip-sync'
 import { broadcastSyncCommand } from './sync-bridge'
 
 export const idleConfig: IdleConfig = {
@@ -426,14 +426,21 @@ export async function requestAction(actionId: string, options: ActionSyncOptions
   }, watchdogMs)
 }
 
+function toLipSyncMode(s?: string): 'audio' | 'sine' | 'none' {
+  if (s === 'sine') return 'sine'
+  if (s === 'none') return 'none'
+  return 'audio'
+}
+
 /** Fallback text-based speak (no audio) */
-export async function requestSpeak(text: string, actionId?: string, expression?: string, expressionWeight?: number) {
+export async function requestSpeak(text: string, actionId?: string, expression?: string, expressionWeight?: number, lipSync?: string) {
   setState('speaking')
 
   if (expression) {
     setExpression(expression, expressionWeight ?? 0.8)
   }
 
+  setLipSyncMode(toLipSyncMode(lipSync))
   triggerSpeak(text)
 
   if (actionId) {
@@ -447,12 +454,14 @@ export async function requestSpeak(text: string, actionId?: string, expression?:
 }
 
 /** Audio-driven speak with real TTS audio */
-export async function requestSpeakAudio(audioUrl: string, actionId?: string, expression?: string, expressionWeight?: number) {
+export async function requestSpeakAudio(audioUrl: string, actionId?: string, expression?: string, expressionWeight?: number, lipSync?: string) {
   setState('speaking')
 
   if (expression) {
     setExpression(expression, expressionWeight ?? 0.8)
   }
+
+  setLipSyncMode(toLipSyncMode(lipSync))
 
   // Start action animation if specified
   if (actionId) {

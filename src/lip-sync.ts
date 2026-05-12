@@ -5,6 +5,17 @@ let speaking = false
 let speakStart = 0
 let speakDuration = 0
 
+// Lip sync mode: 'audio' (default), 'sine' (gentle), 'none' (no mouth movement)
+type LipSyncMode = 'audio' | 'sine' | 'none'
+let lipSyncMode: LipSyncMode = 'audio'
+
+/**
+ * Set the lip sync mode for the next speak utterance.
+ */
+export function setLipSyncMode(mode: LipSyncMode): void {
+  lipSyncMode = mode
+}
+
 // Audio-driven lip sync
 let audioContext: AudioContext | null = null
 let analyser: AnalyserNode | null = null
@@ -112,8 +123,8 @@ export function updateLipSync() {
   const vrm = state.vrm
   if (!vrm?.expressionManager) return
 
-  // Audio-driven lip sync
-  if (audioPlaying && analyser) {
+  // Audio-driven lip sync — only when mode is 'audio'
+  if (audioPlaying && analyser && lipSyncMode === 'audio') {
     const dataArray = new Uint8Array(analyser.frequencyBinCount)
     analyser.getByteFrequencyData(dataArray)
 
@@ -139,6 +150,9 @@ export function updateLipSync() {
     setExpressionIfAvailable(vrm, 'ou', ou)
     return
   }
+
+  // None mode: skip all mouth movement
+  if (lipSyncMode === 'none') return
 
   // Reset audio-driven values when not playing
   if (!speaking) {

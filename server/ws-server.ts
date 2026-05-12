@@ -199,7 +199,7 @@ const bridgeServer = createServer(async (req, res) => {
     req.on('data', (chunk: string) => { body += chunk })
     req.on('end', async () => {
       try {
-        const { text, audio_device, action_id: actionIdOverride, expression: expressionOverride, expression_weight: expressionWeightOverride } = JSON.parse(body)
+        const { text, audio_device, action_id: actionIdOverride, expression: expressionOverride, expression_weight: expressionWeightOverride, lip_sync } = JSON.parse(body)
         if (!text) { res.writeHead(400); res.end('Missing text'); return }
 
         await enqueueBridgeSpeak(async () => {
@@ -214,6 +214,7 @@ const bridgeServer = createServer(async (req, res) => {
             const audioUrl = await generateTTS(text)
             const msg: any = { type: 'speak_audio', request_id, audio_url: audioUrl, text, action_id, expression, expression_weight }
             if (audio_device) msg.audio_device = audio_device
+            if (lip_sync) msg.lip_sync = lip_sync
             const msgStr = JSON.stringify(msg)
             for (const client of clients) {
               if (client.readyState === WebSocket.OPEN) client.send(msgStr)
@@ -227,7 +228,9 @@ const bridgeServer = createServer(async (req, res) => {
             res.writeHead(200, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ ok: true, request_id, action_id, audio_url: audioUrl }))
           } catch (e: any) {
-            const msg = JSON.stringify({ type: 'speak', request_id, text, action_id, expression, expression_weight })
+            const msgPayload: any = { type: 'speak', request_id, text, action_id, expression, expression_weight }
+            if (lip_sync) msgPayload.lip_sync = lip_sync
+            const msg = JSON.stringify(msgPayload)
             for (const client of clients) {
               if (client.readyState === WebSocket.OPEN) client.send(msg)
             }
