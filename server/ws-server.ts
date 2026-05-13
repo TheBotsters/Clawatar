@@ -22,7 +22,7 @@ const faceTracker = new FacePersistenceTracker()
 const speakerTracker = new NewSpeakerDetector()
 
 // Load config
-const CONFIG_PATH = resolve(import.meta.dirname ?? '.', '..', 'clawatar.config.json')
+const CONFIG_PATH = process.env.CLAWATAR_CONFIG || resolve(import.meta.dirname ?? '.', '..', 'clawatar.config.json')
 let config: any = {}
 try { config = JSON.parse(readFileSync(CONFIG_PATH, 'utf-8')) } catch {}
 

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url'
 import { networkInterfaces } from 'os'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const configPath = join(__dirname, '..', 'clawatar.config.json')
+const configPath = process.env.CLAWATAR_CONFIG || join(__dirname, '..', 'clawatar.config.json')
 
 let config = { server: { vitePort: 3000, wsPort: 8765 } }
 try { config = JSON.parse(readFileSync(configPath, 'utf-8')) } catch {}

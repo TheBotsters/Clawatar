@@ -23,7 +23,7 @@ import { broadcastSyncCommand } from './sync-bridge'
 import { initAmbientMusic, getMusicState, toggleMusic } from './ambient-music'
 import { initAmbienceMixer } from './ambience-mixer'
 import { state } from './app-state'
-import { persistModelURL, resolveAutoLoadModelURL, warmConversationActions } from './viewer-autoload'
+import { loadViewerConfig, persistModelURL, resolveAutoLoadModelURL, warmConversationActions } from './viewer-autoload'
 
 // Update UI from VRM metadata when a model is loaded
 export function updateModelUI() {
@@ -33,6 +33,22 @@ export function updateModelUI() {
     if (nameEl) nameEl.textContent = name
     const chatHeader = document.getElementById('chat-header')
     if (chatHeader) chatHeader.textContent = `💬 Chat with ${name} ▾`
+  }
+}
+
+async function applyViewerConfigUI() {
+  const config = await loadViewerConfig()
+  const configuredName = config.character?.name?.trim()
+  const configuredMood = config.character?.mood?.trim()
+  if (configuredName) {
+    const nameEl = document.querySelector('.name-text')
+    if (nameEl) nameEl.textContent = configuredName
+    const chatHeader = document.getElementById('chat-header')
+    if (chatHeader) chatHeader.textContent = `💬 Chat with ${configuredName} ▾`
+  }
+  if (configuredMood) {
+    const moodEl = document.getElementById('mood-text')
+    if (moodEl) moodEl.textContent = configuredMood
   }
 }
 
@@ -144,6 +160,7 @@ async function autoLoad() {
     return
   }
 
+  await applyViewerConfigUI()
   const modelUrl = await resolveAutoLoadModelURL()
 
   if (modelUrl && !isBgOnly) {

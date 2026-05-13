@@ -1,16 +1,36 @@
 const WARM_ACTIONS = ['86_Talking', '88_Thinking'] as const
 
-export async function resolveAutoLoadModelURL(): Promise<string> {
-  let configModelUrl = ''
-  let configAutoLoad = true
+export type ClawatarViewerConfig = {
+  character?: {
+    id?: string
+    name?: string
+    mood?: string
+  }
+  model?: {
+    url?: string
+    autoLoad?: boolean
+  }
+}
+
+let cachedConfig: ClawatarViewerConfig | null = null
+
+export async function loadViewerConfig(): Promise<ClawatarViewerConfig> {
+  if (cachedConfig) return cachedConfig
   try {
     const resp = await fetch('./clawatar.config.json')
     if (resp.ok) {
-      const config = await resp.json()
-      configModelUrl = config.model?.url || ''
-      configAutoLoad = config.model?.autoLoad !== false
+      cachedConfig = await resp.json()
+      return cachedConfig ?? {}
     }
   } catch {}
+  cachedConfig = {}
+  return cachedConfig
+}
+
+export async function resolveAutoLoadModelURL(): Promise<string> {
+  const config = await loadViewerConfig()
+  const configModelUrl = config.model?.url || ''
+  const configAutoLoad = config.model?.autoLoad !== false
 
   if (!configAutoLoad) return ''
 

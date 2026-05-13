@@ -2,10 +2,12 @@ import { defineConfig, type Plugin } from 'vite'
 import { readFileSync, existsSync } from 'fs'
 import { resolve } from 'path'
 
+const configPath = process.env.CLAWATAR_CONFIG || 'clawatar.config.json'
+
 // Read config for port
 let vitePort = 3000
 try {
-  const config = JSON.parse(readFileSync('clawatar.config.json', 'utf-8'))
+  const config = JSON.parse(readFileSync(configPath, 'utf-8'))
   vitePort = config.server?.vitePort || 3000
 } catch {}
 
@@ -16,7 +18,7 @@ function serveConfig(): Plugin {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         if (req.url === '/clawatar.config.json') {
-          const p = resolve('clawatar.config.json')
+          const p = resolve(configPath)
           if (existsSync(p)) {
             res.setHeader('Content-Type', 'application/json')
             res.end(readFileSync(p, 'utf-8'))
