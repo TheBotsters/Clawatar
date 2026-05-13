@@ -476,7 +476,8 @@ async function init() {
     initNativeSyncReceiver()
   } else {
     initChatAndVoice()
-    connectWS()
+    const viewerConfig = await loadViewerConfig()
+    connectWS(viewerConfig.server?.wsPort)
   }
   if (!disableAutoLoad) {
     autoLoad()

@@ -10,6 +10,12 @@ export type ClawatarViewerConfig = {
     url?: string
     autoLoad?: boolean
   }
+  server?: {
+    vitePort?: number
+    wsPort?: number
+    audioPort?: number
+    bridgePort?: number
+  }
 }
 
 let cachedConfig: ClawatarViewerConfig | null = null
