@@ -41,6 +41,7 @@ async function applyViewerConfigUI() {
   const configuredName = config.character?.name?.trim()
   const configuredMood = config.character?.mood?.trim()
   if (configuredName) {
+    ;(window as any).__clawatar_config_name = configuredName
     const nameEl = document.querySelector('.name-text')
     if (nameEl) nameEl.textContent = configuredName
     const chatHeader = document.getElementById('chat-header')

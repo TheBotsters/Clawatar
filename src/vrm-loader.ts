@@ -385,13 +385,16 @@ export async function loadVRM(urlOrBlob: string | Blob): Promise<VRM> {
     state.vrmMeta = normalizeVRMMeta((vrm as any).meta)
     state.baseFacingYaw = baseYaw
 
-    // Update UI from VRM metadata (name, chat header, etc.)
-    const metaName = state.vrmMeta.name
-    if (metaName) {
+    // Update UI from configured character name when present; otherwise fall back to VRM metadata.
+    const configuredName = typeof (window as any).__clawatar_config_name === 'string'
+      ? (window as any).__clawatar_config_name.trim()
+      : ''
+    const displayName = configuredName || state.vrmMeta.name
+    if (displayName) {
       const nameEl = document.querySelector('.name-text')
-      if (nameEl) nameEl.textContent = metaName
+      if (nameEl) nameEl.textContent = displayName
       const chatHeader = document.getElementById('chat-header')
-      if (chatHeader) chatHeader.textContent = `💬 Chat with ${metaName} ▾`
+      if (chatHeader) chatHeader.textContent = `💬 Chat with ${displayName} ▾`
     }
 
     // Save URL for persistence (skip blob URLs)
