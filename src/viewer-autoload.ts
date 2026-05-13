@@ -2,13 +2,17 @@ const WARM_ACTIONS = ['86_Talking', '88_Thinking'] as const
 
 export async function resolveAutoLoadModelURL(): Promise<string> {
   let configModelUrl = ''
+  let configAutoLoad = true
   try {
     const resp = await fetch('./clawatar.config.json')
     if (resp.ok) {
       const config = await resp.json()
       configModelUrl = config.model?.url || ''
+      configAutoLoad = config.model?.autoLoad !== false
     }
   } catch {}
+
+  if (!configAutoLoad) return ''
 
   const savedUrl = localStorage.getItem('vrm-model-url') || ''
   return configModelUrl || savedUrl

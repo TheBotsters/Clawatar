@@ -30,12 +30,57 @@ async function loadCatalog() {
 
 const EXPRESSIONS = ['happy', 'angry', 'sad', 'surprised', 'relaxed', 'neutral']
 
+function initControlDrawer() {
+  const body = document.body
+  const toggle = document.getElementById('controls-toggle') as HTMLButtonElement | null
+  if (!toggle) return
+
+  const apply = () => {
+    const hidden = body.classList.contains('controls-hidden')
+    const mobileOpen = body.classList.contains('controls-open-mobile')
+    toggle.textContent = hidden ? 'Show controls' : 'Hide controls'
+    toggle.setAttribute('aria-expanded', String(!hidden || mobileOpen))
+  }
+
+  const isMobile = () => window.innerWidth <= 900
+
+  const setHidden = (hidden: boolean) => {
+    body.classList.toggle('controls-hidden', hidden)
+    if (isMobile()) {
+      body.classList.toggle('controls-open-mobile', !hidden)
+    } else {
+      body.classList.remove('controls-open-mobile')
+    }
+    apply()
+  }
+
+  if (isMobile()) setHidden(true)
+  else apply()
+
+  toggle.addEventListener('click', () => {
+    const hidden = body.classList.contains('controls-hidden')
+    setHidden(!hidden)
+  })
+
+  window.addEventListener('resize', () => {
+    if (isMobile()) {
+      if (!body.classList.contains('controls-hidden') && !body.classList.contains('controls-open-mobile')) {
+        body.classList.add('controls-open-mobile')
+      }
+    } else {
+      body.classList.remove('controls-open-mobile')
+    }
+    apply()
+  })
+}
+
 export async function initUI() {
   // Expose crossfade scale for console tuning: window.setCrossfadeScale(2.0)
   ;(window as any).setCrossfadeScale = setCrossfadeScale
   ;(window as any).getCrossfadeScale = () => crossfadeScale
 
   await loadCatalog()
+  initControlDrawer()
   // State indicator
   const stateEl = document.getElementById('state-indicator')
   if (stateEl) {

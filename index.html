@@ -215,7 +215,7 @@
       position: fixed;
       top: 20px;
       right: 20px;
-      width: min(340px, calc(100vw - 40px));
+      width: min(300px, calc(100vw - 40px));
       max-height: calc(100vh - 40px);
       overflow-y: auto;
       z-index: 50;
@@ -226,13 +226,47 @@
       box-shadow: var(--panel-shadow);
       backdrop-filter: blur(16px) saturate(118%);
       font-size: 12px;
-      transition: transform var(--ease-ui), box-shadow var(--ease-ui), border-color var(--ease-ui);
+      transition: transform var(--ease-ui), box-shadow var(--ease-ui), border-color var(--ease-ui), opacity var(--ease-ui);
+    }
+
+    body.controls-hidden #controls {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(calc(100% + 28px));
     }
 
     #controls:hover {
       transform: translateY(-2px);
       border-color: rgba(236, 64, 122, 0.5);
       box-shadow: 0 20px 48px rgba(166, 84, 126, 0.28);
+    }
+
+    body.controls-hidden #controls:hover {
+      transform: translateX(calc(100% + 28px));
+    }
+
+    #controls-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 52;
+      border: 1px solid rgba(236, 64, 122, 0.32);
+      background: rgba(255, 247, 251, 0.86);
+      color: #8b4d6d;
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 10px 24px rgba(166, 84, 126, 0.18);
+      backdrop-filter: blur(14px) saturate(120%);
+      transition: transform var(--ease-ui), box-shadow var(--ease-ui), background var(--ease-ui);
+    }
+
+    #controls-toggle:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 30px rgba(166, 84, 126, 0.24);
+      background: rgba(255, 251, 253, 0.92);
     }
 
     #controls::-webkit-scrollbar {
@@ -559,8 +593,9 @@
       position: fixed;
       bottom: 20px;
       left: 20px;
-      width: min(430px, calc(100vw - 40px));
-      max-height: min(440px, calc(100vh - 110px));
+      width: min(360px, calc(100vw - 40px));
+      max-width: calc(100vw - 40px);
+      max-height: min(380px, calc(100vh - 110px));
       z-index: 50;
       border-radius: 24px;
       border: 1px solid rgba(242, 150, 182, 0.42);
@@ -570,7 +605,7 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      transition: transform var(--ease-ui), box-shadow var(--ease-ui), border-color var(--ease-ui);
+      transition: transform var(--ease-ui), box-shadow var(--ease-ui), border-color var(--ease-ui), width var(--ease-ui), max-height var(--ease-ui);
     }
 
     #emotion-bar {
@@ -642,7 +677,13 @@
       display: none;
     }
 
+    #chat-container.compact {
+      width: min(300px, calc(100vw - 40px));
+      max-height: 220px;
+    }
+
     #chat-container.collapsed {
+      width: min(220px, calc(100vw - 40px));
       max-height: 52px;
     }
 
@@ -929,6 +970,11 @@
     }
 
     @media (max-width: 900px) {
+      #controls-toggle {
+        top: 12px;
+        right: 12px;
+      }
+
       #controls {
         top: 12px;
         right: 12px;
@@ -937,29 +983,47 @@
         max-height: 50vh;
       }
 
+      body:not(.controls-open-mobile) #controls {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-16px);
+      }
+
       #chat-container {
         left: 12px;
-        right: 12px;
-        width: auto;
+        width: min(280px, calc(100vw - 24px));
         bottom: 12px;
-        max-height: 42vh;
+        max-height: 34vh;
+      }
+
+      #chat-container.compact {
+        width: min(240px, calc(100vw - 24px));
+      }
+
+      #chat-container.collapsed {
+        width: min(200px, calc(100vw - 24px));
       }
 
       #emotion-bar {
-        bottom: calc(42vh + 18px);
+        left: 12px;
+        top: 82px;
+        bottom: auto;
+        transform: none;
+        flex-direction: column;
         gap: 7px;
-        padding: 7px 10px;
+        padding: 8px 7px;
+        border-radius: 999px;
       }
 
       .emotion-btn {
-        width: 34px;
-        height: 34px;
-        font-size: 16px;
+        width: 32px;
+        height: 32px;
+        font-size: 15px;
       }
 
       #status {
         right: 12px;
-        bottom: calc(42vh + 22px);
+        bottom: calc(34vh + 22px);
       }
     }
   </style>
@@ -974,6 +1038,8 @@
     <span class="name-heart">💖</span>
     <span class="mood-text" id="mood-text">ready when you are 🌙</span>
   </div>
+
+  <button id="controls-toggle" type="button" aria-expanded="true">Hide controls</button>
 
   <div id="controls">
     <div class="panel-title">
@@ -1071,8 +1137,8 @@
     <button class="emotion-btn" data-emotion="dance" title="Dance">💃</button>
   </div>
 
-  <div id="chat-container">
-    <div id="chat-header">💬 Chat with Annie <span>▾</span></div>
+  <div id="chat-container" class="compact">
+    <div id="chat-header">💬 Chat with Annie <span id="chat-collapse-icon">▾</span></div>
     <div id="chat-messages"></div>
     <div id="chat-input-row">
       <input type="text" id="chat-input" placeholder="Say something sweet..." />

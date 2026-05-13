@@ -1,7 +1,19 @@
 type SendCallback = (text: string) => void
 
+type ChatMode = 'collapsed' | 'compact' | 'full'
+
 let chatMessages: HTMLDivElement | null = null
 let sendCallback: SendCallback | null = null
+let currentMode: ChatMode = 'compact'
+
+function applyChatMode(container: HTMLElement, mode: ChatMode) {
+  currentMode = mode
+  container.classList.remove('collapsed', 'compact')
+  if (mode === 'collapsed') container.classList.add('collapsed')
+  if (mode === 'compact') container.classList.add('compact')
+  const icon = document.getElementById('chat-collapse-icon')
+  if (icon) icon.textContent = mode === 'collapsed' ? '▸' : mode === 'compact' ? '▾' : '▿'
+}
 
 export function initChatUI(onSend: SendCallback) {
   sendCallback = onSend
@@ -25,10 +37,13 @@ export function initChatUI(onSend: SendCallback) {
   sendBtn.addEventListener('click', doSend)
 
   // Toggle chat visibility
+  applyChatMode(container, 'compact')
+
   const toggleBtn = document.getElementById('chat-header')
   if (toggleBtn) {
     toggleBtn.addEventListener('click', () => {
-      container.classList.toggle('collapsed')
+      const nextMode: ChatMode = currentMode === 'collapsed' ? 'compact' : currentMode === 'compact' ? 'full' : 'collapsed'
+      applyChatMode(container, nextMode)
     })
   }
 }

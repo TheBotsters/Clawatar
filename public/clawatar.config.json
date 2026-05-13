@@ -1,5 +1,6 @@
 {
   "model": {
-    "url": "https://huggingface.co/datasets/shuaishuaicdp/VRM/resolve/main/release-human-plus-comet-v1/models/base_female.vrm"
+    "url": "./models/annie-custom.vrm",
+    "autoLoad": true
   }
 }

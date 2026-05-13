@@ -1,6 +1,6 @@
 {
   "model": {
-    "url": "",
+    "url": "./models/annie-custom.vrm",
     "autoLoad": true
   },
   "voice": {
