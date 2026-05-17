@@ -219,12 +219,12 @@ const bridgeServer = createServer(async (req, res) => {
             for (const client of clients) {
               if (client.readyState === WebSocket.OPEN) client.send(msgStr)
             }
-            const fallbackTimer = setTimeout(() => completeBridgeRequest(request_id), estimateBridgeSpeechMs(text))
-            try {
-              await waitForBridgeCompletion(request_id)
-            } finally {
-              clearTimeout(fallbackTimer)
-            }
+            // Pace bridge speech server-side. Previously, any connected avatar page
+            // could ack avatar_performance_complete and advance the queue; stale or
+            // hidden pages could therefore cause the next segment to interrupt the
+            // visible avatar's current audio. A conservative dwell avoids self-overlap
+            // across multiple connected clients.
+            await sleep(estimateBridgeSpeechMs(text))
             res.writeHead(200, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ ok: true, request_id, action_id, audio_url: audioUrl }))
           } catch (e: any) {
@@ -3264,6 +3264,10 @@ function estimateBridgeSpeechMs(text: string): number {
   const chars = [...trimmed].length
   const estimated = Math.max(words * 420, chars * 75) + 900
   return Math.max(1200, Math.min(estimated, 12000))
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 function completeBridgeRequest(requestId: string, error?: string): void {

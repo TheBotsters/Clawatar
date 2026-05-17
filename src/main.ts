@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { initScene, initContactShadow, updateContactShadow, scene, camera, renderer, controls, clock, composer, outlineEffect, warmTintVRMMaterials, setTransparentBackground, setContactShadowCharacterVisible } from './scene'
 import { initLookAt, updateLookAt, setMeetingLookAt } from './look-at'
 import { updateBlink } from './blink'
-import { updateLipSync } from './lip-sync'
+import { updateLipSync, reapplyLipSync } from './lip-sync'
 import { applyExpressionOverrides, updateExpressionTransitions } from './expressions'
 import { connectWS, initChatAndVoice, initNativeSyncReceiver } from './ws-control'
 import { initUI } from './ui'
@@ -657,6 +657,10 @@ function animate() {
   applyExpressionOverrides()
   updateBlink(elapsed)
   updateLipSync()
+  // Lip sync mouth shapes must win over expression-preset mouth bindings
+  // (VRM expression presets like 'happy' often include aa/oh/ih/ee/ou morph targets,
+  // which would compound with lip-sync and freeze the mouth open.
+  reapplyLipSync()
   if (state.vrm) {
     state.vrm.update(delta)
 

@@ -119,6 +119,60 @@ export function triggerSpeak(text: string) {
   speakDuration = Math.max(1, text.length * 0.08)
 }
 
+/**
+ * Re-apply lip sync mouth shapes AFTER expression overrides have been applied.
+ * VRM expression presets (happy/sad/warm/etc.) include mouth morph target binds
+ * (aa/oh/ih/ee/ou) that would compound with lip-sync and freeze the mouth open.
+ * This gives lip sync the last word on mouth shapes.
+ */
+export function reapplyLipSync() {
+  const vrm = state.vrm
+  if (!vrm?.expressionManager) return
+  // Only reapply when lip sync is actively driving mouth shapes
+  if (!speaking && !audioPlaying) return
+  if (lipSyncMode === 'none') return
+
+  // We need to know what values updateLipSync last computed.
+  // Check which mouth shapes have non-zero values set by lip sync,
+  // and re-set them (they were just overridden by applyExpressionOverrides).
+  if (audioPlaying && analyser && lipSyncMode === 'audio') {
+    // The audio-driven values are still on the analyser — re-derive and set
+    const dataArray = new Uint8Array(analyser!.frequencyBinCount)
+    analyser!.getByteFrequencyData(dataArray)
+    const len = dataArray.length
+    const low = avg(dataArray, 0, Math.floor(len * 0.15))
+    const midLow = avg(dataArray, Math.floor(len * 0.15), Math.floor(len * 0.3))
+    const mid = avg(dataArray, Math.floor(len * 0.3), Math.floor(len * 0.5))
+    const high = avg(dataArray, Math.floor(len * 0.5), Math.floor(len * 0.8))
+    const volume = avg(dataArray, 0, len) / 255
+    const aa = clamp(volume * 2.5 * (low / 255))
+    const oh = clamp((midLow / 255) * 1.5 * volume)
+    const ih = clamp((mid / 255) * 1.2 * volume)
+    const ee = clamp((high / 255) * 1.0 * volume)
+    const ou = clamp((midLow / 255) * 0.8 * volume)
+    setExpressionIfAvailable(vrm, 'aa', aa)
+    setExpressionIfAvailable(vrm, 'oh', oh)
+    setExpressionIfAvailable(vrm, 'ih', ih)
+    setExpressionIfAvailable(vrm, 'ee', ee)
+    setExpressionIfAvailable(vrm, 'ou', ou)
+  } else if (speaking && vrm.expressionManager) {
+    // Sine-wave fallback: just repeat the sine calculation
+    const elapsed = performance.now() / 1000 - speakStart
+    const t = elapsed * 8
+    const aa = Math.max(0, Math.sin(t) * 0.6 + Math.sin(t * 1.7) * 0.3)
+    const oh = Math.max(0, Math.cos(t * 0.7) * 0.3)
+    setExpressionIfAvailable(vrm, 'aa', aa)
+    setExpressionIfAvailable(vrm, 'oh', oh)
+  } else {
+    // Speaking ended between updateLipSync and reapply — zero the mouth
+    setExpressionIfAvailable(vrm, 'aa', 0)
+    setExpressionIfAvailable(vrm, 'oh', 0)
+    setExpressionIfAvailable(vrm, 'ih', 0)
+    setExpressionIfAvailable(vrm, 'ee', 0)
+    setExpressionIfAvailable(vrm, 'ou', 0)
+  }
+}
+
 export function updateLipSync() {
   const vrm = state.vrm
   if (!vrm?.expressionManager) return
