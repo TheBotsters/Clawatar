@@ -56,7 +56,8 @@ function printConnectionInfo() {
 
 printConnectionInfo()
 
-const vite = spawn('npx', ['vite', '--host', '0.0.0.0', '--port', String(vitePort)], {
+const viteHost = process.env.CLAWATAR_VITE_HOST || config.server?.viteHost || '127.0.0.1'
+const vite = spawn('npx', ['vite', '--host', viteHost, '--port', String(vitePort)], {
   stdio: 'inherit', shell: true, cwd: join(__dirname, '..')
 })
 const ws = spawn('npx', ['tsx', 'server/ws-server.ts'], {
