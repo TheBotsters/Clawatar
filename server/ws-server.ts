@@ -69,9 +69,14 @@ function getElevenLabsApiKey(): string {
   } catch { return '' }
 }
 
+function resolveTtsProvider(): TtsProviderKind {
+  const raw = process.env.CLAWATAR_TTS_PROVIDER || config.voice?.provider || 'elevenlabs'
+  return raw === 'openai-compatible' ? 'openai-compatible' : 'elevenlabs'
+}
+
 function resolveTtsConfig(): ResolvedTtsConfig {
   return {
-    provider: config.voice?.provider === 'openai-compatible' ? 'openai-compatible' : 'elevenlabs',
+    provider: resolveTtsProvider(),
     elevenlabs: {
       voiceId: process.env.ELEVEN_LABS_VOICE_ID || config.voice?.elevenlabs?.voiceId || config.voice?.elevenlabsVoiceId || 'L5vK1xowu0LZIPxjLSl5',
       model: process.env.ELEVEN_LABS_MODEL || config.voice?.elevenlabs?.model || config.voice?.elevenlabsModel || 'eleven_turbo_v2_5',
