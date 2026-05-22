@@ -128,11 +128,7 @@ function isLoopbackAddress(address: string | undefined): boolean {
 }
 
 function getAudioBaseURL(): string {
-  const tsIP = process.env.CLAWATAR_TAILSCALE_IP || '100.77.209.106'
-  if (process.env.CLAWATAR_TAILSCALE_IP || tsIP) {
-    return `http://${tsIP}:${actualAudioPort}`
-  }
-  const host = process.env.CLAWATAR_PUBLIC_HOST || getPrimaryNetworkIP() || 'localhost'
+  const host = process.env.CLAWATAR_AUDIO_HOST || '127.0.0.1'
   return `http://${host}:${actualAudioPort}`
 }
 
