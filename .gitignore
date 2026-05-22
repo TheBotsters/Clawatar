@@ -6,3 +6,6 @@ server/_audio_cache/
 *.vrm
 dist/
 public/audio/
+
+# runtime artifacts
+server/memory/clawatar-sync-state.json
